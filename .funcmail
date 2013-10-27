@@ -1,0 +1,125 @@
+#!/bin/bash
+
+
+
+#***********************
+# Generate random string
+# ----------------------
+# $1 - variable name
+# $2 - string length
+# ----------------------
+function RndStr()
+{
+    local R=`head /dev/urandom | tr -cd 'a-zA-Z0-9' | head -c $2`
+    eval "$1=$R"
+    return 0
+}
+
+#***********************
+# Find MIME-type for a file
+# ----------------------
+# $1 - file path
+# ----------------------
+function get_mimetype(){
+  # warning: assumes that the passed file exists
+  file --mime-type "$1" | sed 's/.*: //' 
+}
+
+
+generate_plain_headers() {
+    printf '%s\n' "FROM: $FROM
+TO: $MAILTO
+SUBJECT: $SUBJECT
+Mime-Version: 1.0
+Content-Type: multipart/encrypted; boundary=\"$ENCBOUNDARY\"; protocol="application/pgp-encrypted";
+Content-Transfer-Encoding: 7bit
+Content-Description: OpenPGP encrypted message
+
+This is an OpenPGP/MIME encrypted message (RFC 2440 and 3156)
+--${ENCBOUNDARY}
+Content-Transfer-Encoding: 7bit
+Content-Type: application/pgp-encrypted
+Content-Description: PGP/MIME Versions Identification
+
+Version: 1
+
+"
+}
+
+
+
+function generate_multipart_section()
+{
+#    local BOUNDARY
+    RndStr BOUNDARY 32
+
+    printf '%s\n' "Content-Type: multipart/mixed; boundary=\"$BOUNDARY\"
+
+This is a multi-part message in MIME format.
+--${BOUNDARY}
+Content-Type: text/plain; charset=\"US-ASCII\"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline
+
+$BODY
+"
+}
+
+function close_multipart_section()
+{
+    printf '%s\n' "--${BOUNDARY}--"
+}
+
+
+function generate_attachment()
+{
+    local ATTACHMENT=$(basename "$1")
+
+    # Find out mime type of our file
+    MIMETYPE=$(file --mime-type "$ATTACHMENT")
+
+    printf '%s\n' "--${BOUNDARY}
+Content-Type: $MIMETYPE
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename=\"$ATTACHMENT\"
+"
+    base64 "$1"
+}
+
+function generate_encrypted_section()
+{
+    local NAME
+    if [ -n "$1" ] ; then
+       NAME="$1.asc"
+    else
+       NAME="encrypted.asc"
+    fi
+    printf '%s\n' "Content-Transfer-Encoding: 7bit
+Content-Disposition: inline; filename=$NAME
+Content-Type: application/octet-stream; name=$NAME
+Content-Description: OpenPGP encrypted message
+
+"
+}
+
+__generate_encrypted_headers() {
+    printf '%s\n' "Content-Type: multipart/mixed; boundary=\"$BOUNDARY\"
+
+--${BOUNDARY}
+Content-Type: text/plain; charset=\"US-ASCII\"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline
+
+$BODY
+"
+
+    # Find out mime type of our file
+    MIMETYPE=$(file --mime-type "$ATTACHMENT")
+    printf '%s\n' "--${BOUNDARY}
+Content-Type: $MIMETYPE
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename=\"$ATTACHMENT\"
+"
+    base64 "$ATTACHMENT"
+    printf '%s\n' "--${BOUNDARY}--"
+}
