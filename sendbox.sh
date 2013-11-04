@@ -2,6 +2,20 @@
 
 DIR="`cd "$( dirname "$0" )" && pwd`"
 
+# Split big files
+FILES=$DIR/sendbox/files/*
+for f in $FILES; do
+    if [ -f "$f" ]; then
+        if [[ $(stat -c%s $f) -gt 6291456 ]]; then
+            echo "Split file $f ($(stat -c%s $f) bytes)"
+            pushd "$( dirname "$f" )"
+            split -b 6M -d "$(basename "$f")" "$(basename "$f")."
+            rm -f "$(basename "$f")"
+            popd
+        fi
+    fi
+done
+
 
 . "$DIR/.funcmail"
 
