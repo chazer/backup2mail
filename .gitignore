@@ -1,0 +1,5 @@
+*.eml
+.config
+
+sendbox/files/**/*
+!sendbox/files/.gitkeep
